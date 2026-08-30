@@ -1,0 +1,9 @@
+# Phase 0 runtime evidence and environment-specific selection
+/artifacts/
+/config/selected-method.json
+
+# Local editor and OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp
