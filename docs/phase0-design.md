@@ -172,6 +172,13 @@ cleanup または事後検証失敗は方式の `TRIAL_FAILED` とし、Phase 0 
 
 `config/selected-method.json` のschemaは次とする。
 
+`config/selected-method.json` を更新するすべてのプロセスは、run に依存しない
+`config/.selected-method.lock` を `flock` で取得し、backup、commit、必須イベント
+確定、rollback の全期間にわたり同じプロセスで保持する。`flock` が利用不能、
+または lock を取得不能なら capability FAIL とする。新configのidentity・証拠pathと
+必須イベント、counter resetを検証した後は、rollbackを先に解除して新configを正とする。
+その後の旧backup削除失敗はwarning artifactへ記録し、検証済み新configをrollbackしない。
+
 ```json
 {
   "schema_version": 1,

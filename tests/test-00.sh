@@ -3,7 +3,7 @@ set -euo pipefail
 result=${1:?usage: tests/test-00.sh result.jsonl cleanup-ledger.tsv}
 ledger=${2:?cleanup ledger is required}
 python3 - "$result" "$ledger" <<'PY'
-import json, os, sys
+import hashlib, json, os, platform, sys
 
 result, ledger = sys.argv[1:]
 rows = [json.loads(x) for x in open(result, encoding="utf-8") if x.strip()]
@@ -14,7 +14,29 @@ assert rows and all(common <= set(r) for r in rows), "JSONL common contract inco
 assert all(r["environment"] == "killercoda" for r in rows), "not Killercoda evidence"
 env_ids = {r["environment_id"] for r in rows}
 assert len(env_ids) == 1 and next(iter(env_ids)), "environment_id mismatch"
+run_ids = {r.get("run_id") for r in rows}
+assert len(run_ids) == 1 and next(iter(run_ids)), "run_id mismatch"
 assert len({r["command_id"] for r in rows}) == len(rows), "duplicate command_id"
+assert all(isinstance(r["attempt"], int) and r["attempt"] >= 1 for r in rows)
+context_path = os.path.join(os.path.dirname(result), "execution-context.json")
+assert os.path.isfile(context_path), "execution context marker missing"
+context = json.load(open(context_path, encoding="utf-8"))
+assert context.get("schema_version") == 1
+assert context.get("context") == "killercoda"
+assert context.get("context_id") == next(iter(env_ids))
+assert context.get("run_id") == next(iter(run_ids))
+assert context.get("hostname") == rows[0]["hostname"]
+host_marker = "/etc/killercoda/host"
+assert os.path.isfile(host_marker) and os.path.getsize(host_marker) > 0, "Killercoda host marker missing"
+marker_hash = hashlib.sha256(open(host_marker, "rb").read()).hexdigest()
+assert context.get("context_source") == host_marker
+assert context.get("killercoda_host_sha256") == marker_hash
+boot_id = open("/proc/sys/kernel/random/boot_id", encoding="utf-8").read().strip()
+assert context.get("boot_id") == boot_id
+assert context.get("context_id") == f"{platform.node()}-{boot_id}"
+assert context.get("docker_version") == rows[0]["docker_version"]
+assert context.get("compose_kind") in {"plugin", "standalone"}
+assert context.get("compose_version") == rows[0]["compose_version"]
 
 qualified = [r for r in rows if r["event"] == "method_qualified" and r["status"] == "PASS"]
 assert len(qualified) == 1, "exactly one qualified method required"

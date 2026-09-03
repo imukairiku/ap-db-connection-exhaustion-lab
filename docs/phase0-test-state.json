@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "test_id": "TEST-00",
+  "known_consecutive_failures": 1,
+  "last_failure": "Killercoda environment detection and Compose command compatibility failed",
+  "source": "user-provided Killercoda TEST-00 FAIL #1"
+}

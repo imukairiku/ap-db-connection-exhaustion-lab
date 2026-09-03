@@ -4,8 +4,15 @@ set -uo pipefail
 PROJECT=${PHASE0_PROJECT:?PHASE0_PROJECT is required}
 POINT=${1:-snapshot}
 OUT=${2:-/dev/stdout}
-DB=$(docker compose -p "$PROJECT" -f phase0/docker-compose.yml ps -q db)
-AP=$(docker compose -p "$PROJECT" -f phase0/docker-compose.yml ps -q ap)
+compose() {
+  case ${PHASE0_COMPOSE_KIND:-} in
+    plugin) docker compose "$@" ;;
+    standalone) docker-compose "$@" ;;
+    *) echo 'PHASE0_COMPOSE_KIND must be plugin or standalone' >&2; return 2 ;;
+  esac
+}
+DB=$(compose -p "$PROJECT" -f phase0/docker-compose.yml ps -q db)
+AP=$(compose -p "$PROJECT" -f phase0/docker-compose.yml ps -q ap)
 [ -n "$DB" ] && [ -n "$AP" ] || { echo 'probe stack is not running' >&2; exit 2; }
 
 pg=$(docker exec "$DB" psql -U probe -d probe -At -F '|' -c \

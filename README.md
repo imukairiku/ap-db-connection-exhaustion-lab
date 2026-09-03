@@ -15,15 +15,36 @@ sudo bash scripts/probe-env.sh
 
 The command builds an isolated `phase0-*` Docker Compose project, tries methods
 A through E in priority order, cleans up every mutation, and writes evidence to
-`artifacts/phase0/<environment-id>/`. It removes its probe containers and
+`artifacts/phase0/<environment-id>/run-<utc-pid-id>/`. The JSONL `attempt`
+continues to represent consecutive TEST-00 failures, while every run directory
+has a separate unique collision-safe identity and is never truncated. It removes its probe containers and
 network on exit. It never flushes firewall rules, changes the host's existing
 qdisc, publishes PostgreSQL ports, or restarts PostgreSQL.
 
 A successful Killercoda run atomically creates `config/selected-method.json`.
 Local runs are useful diagnostics but deliberately finish nonzero as
 `NOT_QUALIFIED` and cannot create that file.
-Environment overrides that disagree with automatic detection are rejected so
-local evidence cannot be labelled as Killercoda evidence.
+Killercoda is accepted only when its non-empty `/etc/killercoda/host` marker is
+present. The marker value is never logged; only its SHA-256 digest is stored.
+The session ID is derived from hostname and kernel boot ID. Environment,
+identity, and attempt overrides are rejected. These facts plus kernel, Docker,
+and Compose details are stored in `execution-context.json`, and TEST-00
+recomputes them. Both the Docker Compose plugin and legacy `docker-compose`
+standalone command are supported.
+
+Every writer of `config/selected-method.json` must hold the run-independent
+`config/.selected-method.lock` with `flock` for its entire backup, commit,
+event-finalization, and rollback sequence. Missing `flock` is a capability
+failure. After the new config and all required events are validated, it becomes
+authoritative before cleanup of the old backup; a backup deletion failure is
+recorded as a warning artifact and does not roll back the validated new config.
+
+The probe prints its current capability, method, observation point, and final
+artifact path. Terminal failures are also written to stderr and increment
+`artifacts/phase0/test-00-failures.json`; three consecutive failures trigger
+the escalation rule and prevent any further mutation. The repository records
+the user-provided first failure in `docs/phase0-test-state.json`; if no runtime
+counter exists, the next run is attempt 2.
 
 If interrupted, rerun the command: host-owned traps undo pause/STOP, delete only
 tagged rules or probe qdiscs, terminate only revalidated probe backends, and
