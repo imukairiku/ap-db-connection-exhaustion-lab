@@ -16,7 +16,7 @@ AP=$(compose -p "$PROJECT" -f phase0/docker-compose.yml ps -q ap)
 [ -n "$DB" ] && [ -n "$AP" ] || { echo 'probe stack is not running' >&2; exit 2; }
 
 pg=$(docker exec "$DB" psql -U probe -d probe -At -F '|' -c \
-  "SELECT pid,client_addr,client_port,backend_start,state FROM pg_stat_activity WHERE application_name='ap-server-1' ORDER BY pid") || exit 3
+  "SELECT pid,client_addr,client_port,backend_start,state,application_name FROM pg_stat_activity WHERE application_name='ap-server-1' ORDER BY pid") || exit 3
 ss=$(docker exec "$DB" ss -Hnt state established '( sport = :5432 )') || exit 4
 postmaster=$(docker exec "$DB" psql -U probe -d probe -At -c 'SELECT pg_postmaster_start_time()') || exit 5
 restart_count=$(docker inspect -f '{{.RestartCount}}' "$DB") || exit 6
@@ -31,8 +31,8 @@ def addr(value):
 pg=[]
 for line in pg_raw.splitlines():
     if not line: continue
-    pid,client,cport,start,state=line.split('|',4)
-    pg.append({'pid':int(pid),'client_addr':addr(client),'client_port':int(cport),'backend_start':start,'state':state})
+    pid,client,cport,start,state,application_name=line.split('|',5)
+    pg.append({'pid':int(pid),'client_addr':addr(client),'client_port':int(cport),'backend_start':start,'state':state,'application_name':application_name})
 ssrows=[]
 for line in ss_raw.splitlines():
     cols=line.split()

@@ -48,8 +48,18 @@ The probe prints its current capability, method, observation point, and final
 artifact path. Terminal failures are also written to stderr and increment
 `artifacts/phase0/test-00-failures.json`; three consecutive failures trigger
 the escalation rule and prevent any further mutation. The repository records
-the two user-provided failures in `docs/phase0-test-state.json`; if no runtime
-counter exists, the next run is attempt 3.
+three known failures in `docs/phase0-test-state.json`. The human-approved
+`docs/attempt4-authorization.json` permits attempt 4 exactly once for its
+recorded cause fingerprint. Before the first failure injection, the probe
+atomically creates `artifacts/phase0/attempt4-authorization-consumed.json`.
+After consumption, or after attempt 4 succeeds or fails, the authorization
+cannot be reused and attempt 5 remains blocked pending a new escalation.
+
+Cleanup revalidates every recorded backend using PID, backend start time,
+application name, client address, and client port. It terminates only an exact
+match, treats an already-gone PID as success, and rejects identity mismatches.
+The stdin-fed SQL and each per-PID result are preserved in the repository and
+run artifacts; final PostgreSQL and `ss` snapshots must both show disappearance.
 
 If interrupted, rerun the command: host-owned traps undo pause/STOP, delete only
 tagged rules or probe qdiscs, terminate only revalidated probe backends, and

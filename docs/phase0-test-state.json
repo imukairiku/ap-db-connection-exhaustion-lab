@@ -1,7 +1,8 @@
 {
   "schema_version": 1,
   "test_id": "TEST-00",
-  "known_consecutive_failures": 2,
-  "last_failure": "Docker 29.1.3 and docker-compose 1.29.2 failed on force-recreate with KeyError: ContainerConfig",
-  "source": "user-provided Killercoda TEST-00 FAIL #2"
+  "known_consecutive_failures": 3,
+  "last_failure": "cleanup SQL psql -c left :pid placeholders unexpanded, causing syntax error and cleanup failure after method A proved 3 connections remained for 15 seconds",
+  "last_failure_fingerprint": "c2593199c52da24d14179c9c6a4fd86dbd69aa4a5e666f68b61abf6e7690411f",
+  "source": "user-provided Killercoda TEST-00 failures #1-#3"
 }

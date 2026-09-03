@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "approved_by": "human",
+  "approved_at": "2026-09-04",
+  "test_id": "TEST-00",
+  "allowed_attempt": 4,
+  "known_failure_fingerprint": "c2593199c52da24d14179c9c6a4fd86dbd69aa4a5e666f68b61abf6e7690411f",
+  "one_shot": true,
+  "scope": "Validate the identity-safe cleanup SQL fix with method A; do not authorize attempt 5"
+}

@@ -18,6 +18,18 @@ run_ids = {r.get("run_id") for r in rows}
 assert len(run_ids) == 1 and next(iter(run_ids)), "run_id mismatch"
 assert len({r["command_id"] for r in rows}) == len(rows), "duplicate command_id"
 assert all(isinstance(r["attempt"], int) and r["attempt"] >= 1 for r in rows)
+attempts = {r["attempt"] for r in rows}
+assert len(attempts) == 1
+if next(iter(attempts)) == 4:
+    authorization = "artifacts/phase0/attempt4-authorization-consumed.json"
+    assert os.path.isfile(authorization), "attempt 4 authorization was not consumed"
+    consumed = json.load(open(authorization, encoding="utf-8"))
+    approved = json.load(open("docs/attempt4-authorization.json", encoding="utf-8"))
+    seed = json.load(open("docs/phase0-test-state.json", encoding="utf-8"))
+    assert consumed.get("test_id") == "TEST-00" and consumed.get("attempt") == 4
+    assert consumed.get("run_id") == next(iter(run_ids))
+    assert approved.get("approved_by") == "human" and approved.get("one_shot") is True
+    assert consumed.get("known_failure_fingerprint") == approved.get("known_failure_fingerprint") == seed.get("last_failure_fingerprint")
 context_path = os.path.join(os.path.dirname(result), "execution-context.json")
 assert os.path.isfile(context_path), "execution context marker missing"
 context = json.load(open(context_path, encoding="utf-8"))
@@ -48,6 +60,8 @@ for earlier in order[:order.index(method)]:
     terminal = [r for r in rows if r.get("method") == earlier and
                 r.get("method_state") in {"CAPABILITY_FAILED", "TRIAL_FAILED"}]
     assert terminal and terminal[-1]["status"] == "FAIL", "priority order not proven"
+for later in order[order.index(method)+1:]:
+    assert not any(r.get("method") == later for r in rows), "lower-priority method ran after qualification"
 
 observations = [r for r in rows if r["event"] == "observation" and r.get("method") == method]
 by_point = {r["point"]: r for r in observations}
@@ -97,6 +111,18 @@ assert not (before_tuples & {tuple(t) for t in cleanup["canonical_tuples"]}), "t
 assert cleanup["pg_postmaster_start_time"] == postmaster
 assert cleanup["db_restart_count"] == restart_count
 assert selected.get("cleanup_verified") is True
+actions_path = os.path.join(artifact_dir, "cleanup-backend-actions.jsonl")
+assert os.path.isfile(actions_path), "per-PID cleanup actions missing"
+actions = [json.loads(x) for x in open(actions_path, encoding="utf-8") if x.strip()]
+assert {a["requested"]["pid"] for a in actions} == set(before_rows)
+for action in actions:
+    requested = action["requested"]
+    original = before_rows[requested["pid"]]
+    assert all(requested[k] == original[k] for k in
+               ("backend_start", "application_name", "client_addr", "client_port"))
+    result = action["db_result"]
+    assert result.get("action") in {"SKIPPED_GONE", "TERMINATED"}
+    assert result.get("action") != "TERMINATED" or result.get("terminated") is True
 
 assert os.path.isfile(ledger), "cleanup ledger missing"
 entries = [line.rstrip("\n").split("\t") for line in open(ledger, encoding="utf-8") if line.strip()]

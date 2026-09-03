@@ -145,6 +145,15 @@ cleanup は障害対象コンテナ内の trap に依存させず、**ホスト�
 
 cleanup または事後検証失敗は方式の `TRIAL_FAILED` とし、Phase 0 をPASSさせない。
 
+### 8.1 attempt 4 の一回限り承認
+
+既知の連続FAILが3回に達したため、`docs/attempt4-authorization.json` に記録された
+人間承認と既知原因fingerprintが `docs/phase0-test-state.json` と一致する場合に限り、
+attempt 4を一回だけ許可する。最初の障害注入操作前に、O_EXCL相当の原子的作成で
+`artifacts/phase0/attempt4-authorization-consumed.json` を生成する。消費済みmarkerが
+存在する場合、attempt 4の再利用は禁止する。attempt 4の成功・失敗後はattempt 5へ
+自動進行せず、再エスカレーションを必要とする。
+
 ## 9. JSON Lines ログ契約
 
 人間向け要約とは別に機械判定可能な JSONL を保存する。全レコードに次のフィールドを必須とする。

@@ -29,12 +29,33 @@ except Exception: print(int(sys.argv[2]))
 PY
 )
 ATTEMPT=$((PREVIOUS_FAILURES + 1))
-if [ "$PREVIOUS_FAILURES" -ge 3 ]; then
-  latest=$(find "artifacts/phase0/$SAFE_ID" -mindepth 2 -maxdepth 2 -name result.jsonl -type f 2>/dev/null | sort | tail -n 1)
-  echo "[Phase 0] TEST-00 blocked after $PREVIOUS_FAILURES consecutive failures; no artifact was created or changed." >&2
-  echo "[Phase 0] Counter: $FAIL_COUNT_FILE" >&2
-  [ -z "$latest" ] || echo "[Phase 0] Latest preserved evidence: $latest" >&2
+AUTH_FILE="docs/attempt4-authorization.json"
+AUTH_CONSUMED_FILE="artifacts/phase0/attempt4-authorization-consumed.json"
+ATTEMPT4_AUTHORIZED=0
+if [ -e "$AUTH_CONSUMED_FILE" ]; then
+  echo "[Phase 0] TEST-00 blocked: the one-shot attempt 4 authorization is already consumed." >&2
+  echo "[Phase 0] Authorization evidence: $AUTH_CONSUMED_FILE" >&2
+  echo "[Phase 0] A new human escalation is required; no artifact was created or changed." >&2
   exit 3
+fi
+if [ "$PREVIOUS_FAILURES" -ge 3 ]; then
+  if [ "$PREVIOUS_FAILURES" = 3 ] && [ "$ATTEMPT" = 4 ] && [ "$ENVIRONMENT" = killercoda ] && [ ! -e "$AUTH_CONSUMED_FILE" ] && \
+     python3 - "$AUTH_FILE" "$SEED_FILE" <<'PY'
+import json,sys
+auth,seed=map(lambda p:json.load(open(p,encoding='utf-8')),sys.argv[1:])
+assert auth.get('schema_version')==1 and auth.get('approved_by')=='human'
+assert auth.get('test_id')=='TEST-00' and auth.get('allowed_attempt')==4 and auth.get('one_shot') is True
+assert auth.get('known_failure_fingerprint')==seed.get('last_failure_fingerprint')
+PY
+  then
+    ATTEMPT4_AUTHORIZED=1
+  else
+    latest=$(find "artifacts/phase0/$SAFE_ID" -mindepth 2 -maxdepth 2 -name result.jsonl -type f 2>/dev/null | sort | tail -n 1)
+    echo "[Phase 0] TEST-00 blocked after $PREVIOUS_FAILURES consecutive failures; attempt $ATTEMPT is not authorized." >&2
+    echo "[Phase 0] Counter: $FAIL_COUNT_FILE" >&2
+    [ -z "$latest" ] || echo "[Phase 0] Latest preserved evidence: $latest" >&2
+    exit 3
+  fi
 fi
 initial_fail() {
   local reason=$1
@@ -64,6 +85,7 @@ LEDGER="$ART/cleanup-ledger.tsv"
 mkdir -p "$ART" config || { initial_fail "failed to create run artifact directory: $ART"; exit 70; }
 : >"$RESULT" || { initial_fail "failed to initialize result artifact: $RESULT"; exit 70; }
 : >"$LEDGER" || { initial_fail "failed to initialize cleanup ledger: $LEDGER"; exit 70; }
+cp scripts/cleanup-backend.sql "$ART/cleanup-backend.sql" || { initial_fail "failed to preserve cleanup SQL artifact: $ART/cleanup-backend.sql"; exit 70; }
 export PHASE0_PROJECT="$PROJECT"
 HOST=$(hostname); KERNEL=$(uname -sr)
 DOCKER_VERSION=$(docker version --format '{{.Server.Version}}' 2>/dev/null || echo unavailable)
@@ -332,15 +354,27 @@ cleanup_trial() {
 import json,sys
 d=json.load(open(sys.argv[1]))
 for r in d['pg_rows']:
- print('|'.join(map(str,(r['pid'],r['backend_start'],r['client_addr'],r['client_port']))))
+ print('|'.join(map(str,(r['pid'],r['backend_start'],r['application_name'],r['client_addr'],r['client_port']))))
 PY
-    while IFS='|' read -r pid backend_start client_addr client_port; do
-      # Every predicate is from the before ledger; a reused PID cannot match.
-      terminate_result=$(docker exec "$DB" psql -U probe -d probe -At \
-        -v pid="$pid" -v started="$backend_start" -v addr="$client_addr" -v port="$client_port" \
-        -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE pid=:pid AND application_name='ap-server-1' AND backend_start=:'started'::timestamptz AND client_addr=:'addr'::inet AND client_port=:port;" 2>>"$ART/terminate.log") || cleanup_failed=1
-      printf '%s|%s\n' "$pid" "$terminate_result" >>"$ART/terminate.log"
-      [ "$terminate_result" != f ] || cleanup_failed=1
+    # Preserve the first cleanup evidence if EXIT cleanup runs again.
+    [ -e "$ART/cleanup-backend-actions.jsonl" ] || : >"$ART/cleanup-backend-actions.jsonl" || cleanup_failed=1
+    while IFS='|' read -r pid backend_start application_name client_addr client_port; do
+      # psql variable substitution is deliberately fed through stdin. The SQL
+      # first classifies the current PID as gone, exact match, or mismatch and
+      # invokes pg_terminate_backend only from the exact-match CTE.
+      terminate_result=$(docker exec -i "$DB" psql -U probe -d probe -At -v ON_ERROR_STOP=1 \
+        -v pid="$pid" -v backend_start="$backend_start" -v application_name="$application_name" \
+        -v client_addr="$client_addr" -v client_port="$client_port" \
+        < "$ART/cleanup-backend.sql" 2>>"$ART/cleanup-backend-stderr.log") || cleanup_failed=1
+      python3 - "$ART/cleanup-backend-actions.jsonl" "$pid" "$backend_start" "$application_name" "$client_addr" "$client_port" "$terminate_result" <<'PY' || cleanup_failed=1
+import datetime,json,sys
+p,pid,started,app,addr,port,result=sys.argv[1:]
+try: db_result=json.loads(result)
+except Exception: db_result={'action':'SQL_ERROR','raw':result}
+row={'ts':datetime.datetime.now(datetime.timezone.utc).isoformat(),'requested':{'pid':int(pid),'backend_start':started,'application_name':app,'client_addr':addr,'client_port':int(port)},'db_result':db_result}
+with open(p,'a',encoding='utf-8') as f: f.write(json.dumps(row,separators=(',',':'))+'\n')
+raise SystemExit(0 if db_result.get('action') in {'SKIPPED_GONE','TERMINATED'} and (db_result.get('action')!='TERMINATED' or db_result.get('terminated') is True) else 1)
+PY
     done <"$ART/pids-to-clean.txt"
   fi
   sleep 1
@@ -362,13 +396,24 @@ restart_trial_services() {
 }
 
 wait_for_probe_connections() {
-  local out=$1 deadline=$((SECONDS + 30)) matched=0
+  local out=$1 log=$2 deadline=$((SECONDS + 30)) matched=0 state check_rc
+  : >"$log" || return 1
   while [ "$SECONDS" -lt "$deadline" ]; do
-    if [ "$(docker inspect -f '{{.State.Running}}' "$AP" 2>/dev/null)" = true ] && \
-       bash scripts/check-connections.sh readiness "$out" >/dev/null 2>&1; then
+    state=$(docker inspect -f '{{.State.Running}}' "$AP" 2>/dev/null || echo UNKNOWN)
+    check_rc=0
+    bash scripts/check-connections.sh readiness "$out" >/dev/null 2>&1 || check_rc=$?
+    if [ "$check_rc" = 0 ]; then
       matched=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("matched_count",0))' "$out" 2>/dev/null || echo 0)
-      [ "$matched" -ge 3 ] && return 0
+    else
+      matched=0
     fi
+    python3 - "$log" "$state" "$check_rc" "$matched" <<'PY' || return 1
+import datetime,json,sys
+p,state,rc,matched=sys.argv[1:]
+row={'ts':datetime.datetime.now(datetime.timezone.utc).isoformat(),'ap_running':state,'check_rc':int(rc),'matched_count':int(matched)}
+with open(p,'a',encoding='utf-8') as f: f.write(json.dumps(row,separators=(',',':'))+'\n')
+PY
+    [ "$state" = true ] && [ "$matched" -ge 3 ] && return 0
     sleep 1
   done
   return 1
@@ -408,6 +453,18 @@ docker info >"$ART/docker-info.txt" 2>&1 || fail_exit 'docker daemon unavailable
 [ "$COMPOSE_KIND" != unavailable ] || fail_exit 'Docker Compose plugin and standalone docker-compose unavailable' 1 "$ART/compose-version.txt"
 required_event capability PASS 0 '{"reason":"docker and compose executable"}'
 progress 'base Docker/Compose capability PASS'
+
+if [ "$ATTEMPT4_AUTHORIZED" = 1 ]; then
+  python3 - "$AUTH_CONSUMED_FILE" "$AUTH_FILE" "$ENV_ID" "$RUN_ID" "$ATTEMPT" <<'PY' || fail_exit 'attempt 4 authorization could not be consumed atomically' 73 "$AUTH_CONSUMED_FILE"
+import datetime,json,os,sys
+p,auth_path,environment_id,run_id,attempt=sys.argv[1:]
+auth=json.load(open(auth_path,encoding='utf-8'))
+record={'schema_version':1,'test_id':'TEST-00','attempt':int(attempt),'environment_id':environment_id,'run_id':run_id,'authorization':auth_path,'known_failure_fingerprint':auth['known_failure_fingerprint'],'consumed_at':datetime.datetime.now(datetime.timezone.utc).isoformat()}
+fd=os.open(p,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+with os.fdopen(fd,'w',encoding='utf-8') as f: json.dump(record,f,indent=2); f.write('\n')
+PY
+  required_event attempt_authorization PASS 0 "{\"reason\":\"human attempt 4 authorization consumed one-shot\",\"artifact_path\":\"$AUTH_CONSUMED_FILE\"}"
+fi
 
 # L6: separate, real starts; neither result is inferred from the other.
 if docker run --rm --privileged alpine:3.20 sh -c 'test -r /proc/1/status' >"$ART/privileged.txt" 2>&1; then required_event privileged_probe PASS 0 '{"reason":"isolated privileged container started"}'; else required_event privileged_probe FAIL $? '{"reason":"privileged container rejected"}'; fi
@@ -477,8 +534,8 @@ trial() {
     cleanup_trial
     return 1
   fi
-  if ! wait_for_probe_connections "$ART/method-$method-readiness.json"; then
-    required_event method_trial FAIL 1 "{\"method\":\"$method\",\"method_state\":\"TRIAL_FAILED\",\"reason\":\"three correlated probe connections were not ready within 30 seconds\",\"artifact_path\":\"$ART/method-$method-readiness.json\"}"
+  if ! wait_for_probe_connections "$ART/method-$method-readiness.json" "$ART/method-$method-readiness-attempts.jsonl"; then
+    required_event method_trial FAIL 1 "{\"method\":\"$method\",\"method_state\":\"TRIAL_FAILED\",\"reason\":\"three correlated probe connections were not ready within 30 seconds\",\"artifact_path\":\"$ART/method-$method-readiness-attempts.jsonl\"}"
     cleanup_trial
     return 1
   fi
