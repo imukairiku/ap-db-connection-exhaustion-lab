@@ -321,7 +321,10 @@ cleanup_trial() {
     docker top "$AP" -eo stat 2>/dev/null | tail -n +2 | grep -q '^T' && cleanup_failed=1
   fi
   remove_mutation || cleanup_failed=1
-  # Once communication is restored, stop the disposable AP normally first.
+  # Stop both disposable probe services after communication is restored.
+  # The next trial restarts these same containers in place because legacy
+  # Compose cannot reliably recreate them against current Docker metadata.
+  [ -n "$NETADMIN" ] && docker stop --time 3 "$NETADMIN" >>"$ART/netadmin-stop.log" 2>&1 || true
   [ -n "$AP" ] && docker stop --time 3 "$AP" >>"$ART/ap-stop.log" 2>&1 || true
   sleep 1
   if [ -n "$BEFORE_FILE" ] && [ -s "$BEFORE_FILE" ] && [ -n "$DB" ]; then
@@ -342,6 +345,33 @@ PY
   fi
   sleep 1
   return "$cleanup_failed"
+}
+
+restart_trial_services() {
+  local log=$1
+  {
+    docker unpause "$AP" >/dev/null 2>&1 || true
+    docker kill --signal CONT "$AP" >/dev/null 2>&1 || true
+    docker stop --time 3 "$NETADMIN" >/dev/null 2>&1 || true
+    docker stop --time 3 "$AP" >/dev/null 2>&1 || true
+    docker start "$AP"
+    docker start "$NETADMIN"
+    [ "$(docker inspect -f '{{.State.Running}}' "$AP")" = true ]
+    [ "$(docker inspect -f '{{.State.Running}}' "$NETADMIN")" = true ]
+  } >"$log" 2>&1
+}
+
+wait_for_probe_connections() {
+  local out=$1 deadline=$((SECONDS + 30)) matched=0
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    if [ "$(docker inspect -f '{{.State.Running}}' "$AP" 2>/dev/null)" = true ] && \
+       bash scripts/check-connections.sh readiness "$out" >/dev/null 2>&1; then
+      matched=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("matched_count",0))' "$out" 2>/dev/null || echo 0)
+      [ "$matched" -ge 3 ] && return 0
+    fi
+    sleep 1
+  done
+  return 1
 }
 
 cleanup_all() {
@@ -438,11 +468,20 @@ trial() {
   local method=$1 expected point file state before_pm after_pm matched ok=1
   [ "$ABORTED" = 0 ] || return 125
   ACTIVE_METHOD=$method; MUTATION=; BEFORE_FILE="$ART/method-$method-before.json"; ORIGINAL_LINK_FILE=; ORIGINAL_QDISC_FILE=
-  # restart only the AP probe between independent trials; PostgreSQL is never restarted.
+  # Restart the existing AP probe containers between trials; PostgreSQL is
+  # never restarted. Do not use Compose v1 --force-recreate: it raises
+  # KeyError: ContainerConfig with current Docker engines.
   progress "trying method $method"
-  compose -p "$PROJECT" -f phase0/docker-compose.yml up -d --no-deps --force-recreate ap netadmin >"$ART/method-$method-start.log" 2>&1 || return 1
-  AP=$(compose -p "$PROJECT" -f phase0/docker-compose.yml ps -q ap); NETADMIN=$(compose -p "$PROJECT" -f phase0/docker-compose.yml ps -q netadmin)
-  sleep 2
+  if ! restart_trial_services "$ART/method-$method-start.log"; then
+    required_event method_trial FAIL 1 "{\"method\":\"$method\",\"method_state\":\"TRIAL_FAILED\",\"reason\":\"probe AP/netadmin in-place restart failed\",\"artifact_path\":\"$ART/method-$method-start.log\"}"
+    cleanup_trial
+    return 1
+  fi
+  if ! wait_for_probe_connections "$ART/method-$method-readiness.json"; then
+    required_event method_trial FAIL 1 "{\"method\":\"$method\",\"method_state\":\"TRIAL_FAILED\",\"reason\":\"three correlated probe connections were not ready within 30 seconds\",\"artifact_path\":\"$ART/method-$method-readiness.json\"}"
+    cleanup_trial
+    return 1
+  fi
   record_before_state "$method" || { required_event method_trial FAIL 1 "{\"method\":\"$method\",\"method_state\":\"TRIAL_FAILED\",\"reason\":\"before AP state is not externally proven RUNNING\",\"artifact_path\":\"$ART/method-$method-before-inspect.json\"}"; return 1; }
   bash scripts/check-connections.sh before "$BEFORE_FILE" || { required_event method_trial FAIL 1 "{\"method\":\"$method\",\"method_state\":\"TRIAL_FAILED\",\"reason\":\"before observation failed\"}"; return 1; }
   required_event observation PASS 0 "$(python3 - "$BEFORE_FILE" "$method" <<'PY'

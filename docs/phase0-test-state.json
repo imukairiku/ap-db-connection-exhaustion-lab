@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "test_id": "TEST-00",
-  "known_consecutive_failures": 1,
-  "last_failure": "Killercoda environment detection and Compose command compatibility failed",
-  "source": "user-provided Killercoda TEST-00 FAIL #1"
+  "known_consecutive_failures": 2,
+  "last_failure": "Docker 29.1.3 and docker-compose 1.29.2 failed on force-recreate with KeyError: ContainerConfig",
+  "source": "user-provided Killercoda TEST-00 FAIL #2"
 }

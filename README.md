@@ -32,6 +32,11 @@ and Compose details are stored in `execution-context.json`, and TEST-00
 recomputes them. Both the Docker Compose plugin and legacy `docker-compose`
 standalone command are supported.
 
+For Docker 29 compatibility with legacy Compose 1.29, per-method trials restart
+the existing probe containers in place. They do not use Compose
+`--force-recreate`, whose obsolete metadata lookup fails with
+`KeyError: 'ContainerConfig'` on this runtime combination.
+
 Every writer of `config/selected-method.json` must hold the run-independent
 `config/.selected-method.lock` with `flock` for its entire backup, commit,
 event-finalization, and rollback sequence. Missing `flock` is a capability
@@ -43,8 +48,8 @@ The probe prints its current capability, method, observation point, and final
 artifact path. Terminal failures are also written to stderr and increment
 `artifacts/phase0/test-00-failures.json`; three consecutive failures trigger
 the escalation rule and prevent any further mutation. The repository records
-the user-provided first failure in `docs/phase0-test-state.json`; if no runtime
-counter exists, the next run is attempt 2.
+the two user-provided failures in `docs/phase0-test-state.json`; if no runtime
+counter exists, the next run is attempt 3.
 
 If interrupted, rerun the command: host-owned traps undo pause/STOP, delete only
 tagged rules or probe qdiscs, terminate only revalidated probe backends, and
