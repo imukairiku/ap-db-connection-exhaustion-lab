@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "environment_id": "ubuntu-01747e9d-d5c2-494b-bc03-e68deae7aac4",
+  "run_id": "20260903T155321-1728",
+  "result_jsonl": "artifacts/phase0/ubuntu-01747e9d-d5c2-494b-bc03-e68deae7aac4/run-20260903T155321-1728/result.jsonl"
+}

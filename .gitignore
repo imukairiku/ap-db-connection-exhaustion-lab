@@ -1,6 +1,11 @@
-# Phase 0 runtime evidence and environment-specific selection
+# Runtime evidence and environment-specific selection
 /artifacts/
 /config/selected-method.json
+/config/.selected-method.*
+
+# Python caches
+__pycache__/
+*.py[cod]
 
 # Local editor and OS files
 .DS_Store
