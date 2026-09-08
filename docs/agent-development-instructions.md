@@ -34,8 +34,9 @@ GitHub → Killercoda → 受講者がScenario開始 → 演習環境が自動�
 - Python / Shell / Dockerfile / docker-compose.yml / SQL / Killercoda設定 / CI の修正
 - エラー解消のためのコード変更、テストコードの作成
 
-実装上の問題は `tester → 原因分析 → implementer → 再実装 → tester` のように
-エージェント間で解決する。ただし §15 のエスカレーション条件に該当する場合のみ人間へ戻す。
+実装上の問題は、同一Codexエージェントが `tester視点 → 原因分析 → reviewer視点 → implementer視点
+→ 再実装 → tester視点` と役割を順番に切り替えて解決する。ただし §15 のエスカレーション条件に
+該当する場合のみ人間へ戻す。
 
 ---
 
@@ -53,29 +54,31 @@ GitHub → Killercoda → 受講者がScenario開始 → 演習環境が自動�
 
 ---
 
-## 4. AIエージェント構成
+## 4. 単一エージェント運用
 
 ```text
-orchestrator
-├── designer
-├── reviewer
-├── implementer
-├── tester
-└── scenario-writer
+Codex（単一エージェント）
+  designer視点 → reviewer視点 → implementer視点 → tester視点
+  技術環境完成後は必要なTEST-IDでscenario-writer視点を使用
 ```
+
+- `designer`、`reviewer`、`implementer`、`tester`、`scenario-writer`は別エージェントではなく、同一Codexエージェント内の役割・観点である。
+- サブエージェントを生成しない。並列エージェントを起動しない。エージェント間メッセージの受け渡しを行わない。
+- 役割を変更するときは、対象TEST-IDに必要な成果物、判定、未解決事項だけを内部整理し、不要な過去ログ全文を読み直さない。
+- `docs/development-progress.md`をセッション間のチェックポイントとして使用し、完了済みTEST-IDやPhaseを再実行しない。
 
 ---
 
-## 5. 各エージェントの責務と入出力
+## 5. 単一エージェント内の役割と入出力
 
-各エージェントは **通常フロー** と **修正フロー** で入出力が異なる。混同しないこと。
+同一Codexエージェントは、対象TEST-IDごとに以下の役割を順番に担当する。役割ごとの責務と
+**通常フロー**／**修正フロー**の入出力を混同しないこと。
 
-### orchestrator
-Phase管理／作業割当／成果物受け渡し／FAIL差し戻し／要件逸脱防止／進捗管理／報告。
-自身は実装しない。専門エージェントへ委譲する。
+### 開発管理
+Phase管理／対象TEST-IDの限定／役割の順次切替／FAIL差し戻し／要件逸脱防止／進捗管理／報告を行う。
 **§15のエスカレーション条件を監視し、該当時のみ人間へ上げる責任を持つ。**
 
-### designer
+### designer視点
 要件から技術設計を作成する。設計対象：Docker構成／AP構成／PostgreSQL構成／DB接続方式／
 **障害注入方式（§8の方式リストから環境能力に応じて選択）**／AP切替方式／接続残留の再現方式／
 接続枯渇条件／暫定復旧方式／TCP Keepalive／AP側タイムアウト／接続数設計／Killercoda構成／verify方式。
@@ -83,26 +86,26 @@ Phase管理／作業割当／成果物受け渡し／FAIL差し戻し／要件�
 - 推測で設計を確定してはならない。**Phase 0 の環境探査結果に基づいて方式を選ぶ。**
 - 「その障害をこの環境で本当に再現できるか」を、環境探査の実測値で裏づけること。
 
-### reviewer
+### reviewer視点
 - **通常フロー入力**：designerの設計、implementerの実装
 - **修正フロー入力**：testerのFAILレポート＋implementerの修正案
 - **出力**：PASS / FAIL（FAILは理由と修正内容を具体的に。重大／中／軽微で分類）
 - 重大または中の指摘が残る場合はPASSにしてはならない。
 - 観点：技術的成立性／要件漏れ／障害再現性／過度な複雑さ／演習目的整合／安全なreset／第三者再現性。
 
-### implementer
+### implementer視点
 - **通常フロー入力**：PASS済みの設計
 - **修正フロー入力**：testerのFAILレポート＋reviewer承認済みの修正方針
 - **出力**：実行可能な状態の資材一式（人間のコード修正を前提としない）。
 - 対象例：Dockerfile／docker-compose.yml／Python疑似AP／SQL／Shell／healthcheck／
   障害注入script／reset script／確認script／Killercoda Scenario／verify.sh／README。
 
-### tester
+### tester視点
 - 実際に成果物を実行して確認する。「コードを見て動きそう」は禁止。
 - **出力（FAIL時）**：実行コマンド／期待値／実測値／原因／修正推奨／**当該TEST-IDの連続FAIL回数**。
-- FAILは implementer（設計起因なら designer）へ戻す。
+- FAIL時は同一エージェントがimplementer視点（設計起因ならdesigner視点）へ戻る。
 
-### scenario-writer
+### scenario-writer視点
 技術環境完成後にKillercoda教材を作成：問題文／手順／ヒント／解説／verify条件／まとめ。
 受講者に最初から原因を教えない。特に **旧AP接続残留／max_connections枯渇／Keepalive設定**
 を初期問題文に書かない。
@@ -112,8 +115,8 @@ Phase管理／作業割当／成果物受け渡し／FAIL差し戻し／要件�
 ## 5A. TEST-ID単位の作業・停止ルール
 
 - 1回の作業では、原則として1つのTEST-IDだけを扱う。複数のTEST-IDを一気に進めない。
-- TEST-IDごとに `designer → reviewer → implementer → tester` の工程を完了させる。
-- testerが実測でPASSを確認したら、そのTEST-IDの成果物と進捗記録をcommitする。
+- TEST-IDごとに、同一エージェントが `designer視点 → reviewer視点 → implementer視点 → tester視点` の工程を順番に完了させる。
+- tester視点で実測PASSを確認したら、そのTEST-IDの成果物と進捗記録をcommitする。
 - commit後は変更内容、実測結果、commit hashを人間へ簡潔に報告し、作業を停止する。
 - 人間が「続けて」と明示するまで、次のTEST-IDへ進まない。
 - FAIL時の原因分析、設計修正、レビュー、実装修正、再試験は、当該TEST-IDの範囲内で行う。
@@ -139,7 +142,7 @@ Phase管理／作業割当／成果物受け渡し／FAIL差し戻し／要件�
 
 **Phase 1に進む前に必ず実施する。** Killercoda上で何が使えるかをエージェント自身が実測する。
 
-### 探査項目（testerが実行し、結果をログ化）
+### 探査項目（tester視点で実行し、結果をログ化）
 ```text
 ・docker / docker compose が使えるか
 ・docker pause が使えるか
@@ -151,7 +154,7 @@ Phase管理／作業割当／成果物受け渡し／FAIL差し戻し／要件�
 ```
 
 ### 出力
-designerが「使える障害注入方式」を **§8の優先順位リストから確定** し、その根拠（実測値）を
+designer視点で「使える障害注入方式」を **§8の優先順位リストから確定** し、その根拠（実測値）を
 Phase 0報告に記載する。**ここで方式が確定するまでPhase 1へ進まない。**
 
 ---
@@ -179,7 +182,7 @@ ap-server-1障害 → ap-server-2へ切替 → 旧APのDB接続が残留
 DBへ届けないまま残留させ、実TCP/実PostgreSQLセッションとして残す。
 
 ### 障害注入方式 ─ 優先順位つき許容リスト
-designerは Phase 0 の探査結果に基づき、**動作が確認できた最上位の方式**を採用する。
+designer視点では Phase 0 の探査結果に基づき、**動作が確認できた最上位の方式**を採用する。
 
 ```text
 方式A（第一候補）：通信DROP（iptables/nft）→ その後 docker pause
@@ -295,7 +298,7 @@ Step7 旧AP接続が自動解放 / 新AP業務成功
 
 ---
 
-## 13. tester必須試験
+## 13. tester視点での必須試験
 
 ```text
 TEST-00 環境探査：使える障害注入方式の確定（Phase0）
@@ -331,12 +334,12 @@ Keepalive解放時間／接続失敗数／業務成功・失敗数。
 
 ## 15. 自律修正ルールとエスカレーション（停止条件を明記）
 
-FAIL検出時は即座に人間へ質問しない。原則 `tester → 原因分析 → reviewer → implementer
-→ 再実装 → tester`。必要ならdesignerまで戻る。
+FAIL検出時は即座に人間へ質問しない。同一エージェント内で原則 `tester視点 → 原因分析
+→ reviewer視点 → implementer視点 → 再実装 → tester視点` と切り替える。必要ならdesigner視点まで戻る。
 
 ### FAILループの停止条件（新設）
 - **同一TEST-IDが3回連続でFAILした場合**、原因仮説・試行履歴・実測ログを添えて
-  orchestratorが人間へエスカレーションする。無限リトライを禁止する。
+  同一Codexエージェントが開発管理の責務として人間へエスカレーションする。無限リトライを禁止する。
 - 異なるTEST-IDのFAILは各々独立にカウントする。
 
 ### 人間へのエスカレーションが必要な場合
@@ -384,7 +387,7 @@ db-connection-exhaustion-lab/
 └── killercoda/db-connection-exhaustion/
     ├── index.json, intro.md, step1..7.md, verify/, finish.md
 ```
-最終構成は実際のKillercoda仕様に合わせてdesignerが調整する。
+最終構成は実際のKillercoda仕様に合わせてdesigner視点で調整する。
 
 ---
 
@@ -436,12 +439,14 @@ Phase X：PASS / FAIL
 ## 20. 開発開始指示
 
 **まず Phase 0（環境探査）から開始する。** Killercoda上で使える障害注入方式を
-エージェント自身が実測し、designerが§8の優先順位に沿って方式を確定する。
+エージェント自身が実測し、designer視点で§8の優先順位に沿って方式を確定する。
 
-進め方：`環境探査(tester) → 方式確定(designer) → reviewer → implementer → tester`
+進め方：同一エージェントが
+`環境探査(tester視点) → 方式確定(designer視点) → reviewer視点 → implementer視点 → tester視点`
+の順に担当する。
 
 Phase 0がPASSしたら結果（確定方式と根拠）を人間へ報告。
-その後 Phase 1 へ進み、testerが `pg_stat_activity` と `ss` の双方で残留接続を
+その後 Phase 1 へ進み、tester視点で `pg_stat_activity` と `ss` の双方で残留接続を
 確認するまでPhase 1を終了しない。
 
 人間から明示的停止指示がない限り、同じ品質基準でPhase 2以降を順次進める。
