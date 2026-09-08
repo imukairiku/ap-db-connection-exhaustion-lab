@@ -2,7 +2,7 @@
 
 更新日: 2026-09-09
 
-現在のPhase：Phase 1（DB接続残留MVP）
+現在のPhase：Phase 2（DB接続枯渇）
 
 完了済みTEST-ID：
 
@@ -11,8 +11,9 @@
 - TEST-02：PASS（正常時にap-server-1業務成功）
 - TEST-03：PASS（最大12並列処理）
 - TEST-04：PASS（障害注入時に複数接続が処理中）
+- TEST-05：PASS（障害注入後に旧接続がpg_stat_activityとssの双方に残留）
 
-次のTEST-ID：TEST-05（障害注入後に旧接続がpg_stat_activityとssの双方に残留）
+次のTEST-ID：TEST-06（ap-server-2へ切替）
 
 採用済み技術方式：方式A「対象通信DROP → docker pause」
 
@@ -48,12 +49,27 @@
   - DB状態：稼働継続、postmaster起動時刻不変
   - 連続FAIL数：`0`
   - evidence：`artifacts/test-04/ubuntu-e19b44ed-787c-401b-abad-b22bf74ae6d4/20260908T172127-1740-24625c12`
+- TEST-05：Killercoda実環境で方式Aによる旧接続残留と安全なcleanupを確認してPASS。
+  - environment ID：`ubuntu-b2e446fa-055c-4866-997d-ce0d3f8d9200`
+  - run ID：`20260908T173314-1722-19fb173f`
+  - 相関済み残留接続：注入直後 `12`、5秒後 `12`、15秒後 `12`
+  - 観測元：`pg_stat_activity`とDB側`ss`の双方
+  - PostgreSQL：postmaster起動時刻不変
+  - cleanup後：対象`pg_stat_activity` `0`、対象`ss` `0`
+  - 連続FAIL数：`0`
+  - evidence：`artifacts/test-05/ubuntu-b2e446fa-055c-4866-997d-ce0d3f8d9200/20260908T173314-1722-19fb173f`
+
+## Phase 1判定
+
+Phase 1：**PASS**。TEST-01〜05がすべてKillercoda実測PASSし、方式Aによる障害後15秒時点の
+実PostgreSQL session/TCP接続12本の残留、PostgreSQL再起動なし、cleanup後の対象接続0を確認した。
 
 ## 未解決課題
 
-- TEST-05以降は未着手。次回はTEST-05だけを対象にする。
-- TEST-01〜04の実測artifactはKillercodaセッション内にあり、Git管理対象ではない。
+- TEST-06以降は未着手。次回はTEST-06だけを対象にする。
+- TEST-01〜05の実測artifactはKillercodaセッション内にあり、Git管理対象ではない。
+- Phase 2の設計・実装は開始していない。
 
-最新成果物commit：`882dea0`（TEST-04実測準備）
+最新成果物commit：`afc8e51`（TEST-05実測準備）
 
 この文書を更新したチェックポイントcommitは、次回更新時に最新成果物commitとして記録する。
