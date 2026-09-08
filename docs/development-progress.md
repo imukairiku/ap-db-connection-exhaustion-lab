@@ -13,7 +13,7 @@
 - TEST-04：PASS（障害注入時に複数接続が処理中）
 - TEST-05：PASS（障害注入後に旧接続がpg_stat_activityとssの双方に残留）
 
-次のTEST-ID：TEST-06（ap-server-2へ切替）
+次のTEST-ID：TEST-06（max_connections=20でDB接続枯渇）
 
 採用済み技術方式：方式A「対象通信DROP → docker pause」
 
@@ -66,10 +66,15 @@ Phase 1：**PASS**。TEST-01〜05がすべてKillercoda実測PASSし、方式A�
 
 ## 未解決課題
 
-- TEST-06以降は未着手。次回はTEST-06だけを対象にする。
+- TEST-06以降は未着手。次回は新TEST-06（max_connections=20でDB接続枯渇）だけを対象にする。
 - TEST-01〜05の実測artifactはKillercodaセッション内にあり、Git管理対象ではない。
 - Phase 2の設計・実装は開始していない。
 
-最新成果物commit：`afc8e51`（TEST-05実測準備）
+## 未実施TEST-IDの番号整理
+
+Phase順との整合のため、未実施だった旧TEST-07を新TEST-06、旧TEST-08を新TEST-07、
+旧TEST-06を新TEST-08へ変更した。試験内容とPASS条件は変更していない。TEST-00〜05は変更なし。
+
+最新成果物commit：`137986f`（TEST-05 PASS・Phase 1完了記録）
 
 この文書を更新したチェックポイントcommitは、次回更新時に最新成果物commitとして記録する。

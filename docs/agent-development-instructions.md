@@ -307,9 +307,9 @@ TEST-02 正常時にap-server-1業務成功
 TEST-03 最大12並列処理
 TEST-04 障害注入時に複数接続が処理中
 TEST-05 障害注入後に旧接続がpg_stat_activityとssの双方に残留
-TEST-06 ap-server-2へ切替（Phase3インターフェースで検知）
-TEST-07 max_connections=20で接続枯渇
-TEST-08 APログにDB接続エラー
+TEST-06 max_connections=20で接続枯渇
+TEST-07 APログにDB接続エラー
+TEST-08 ap-server-2へ切替（Phase3インターフェースで検知）
 TEST-09 pg_stat_activityから旧AP特定
 TEST-10 pg_terminate_backendで復旧
 TEST-11 PostgreSQL再起動なしで復旧（postmaster起動時刻不変で確認）
