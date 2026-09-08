@@ -1,0 +1,34 @@
+services:
+  db-server:
+    build: {context: ../phase0, dockerfile: db.Dockerfile}
+    command: ["postgres", "-c", "max_connections=20", "-c", "superuser_reserved_connections=3"]
+    environment: {POSTGRES_USER: lab, POSTGRES_PASSWORD: lab-only, POSTGRES_DB: lab}
+    volumes: ["../phase2/test06/init.sql:/docker-entrypoint-initdb.d/10-test06.sql:ro"]
+    healthcheck: {test: ["CMD-SHELL", "pg_isready -U lab -d lab"], interval: 1s, timeout: 2s, retries: 30}
+    networks: [test06]
+  ap-server-1:
+    build: {context: ../phase2/test06}
+    environment: {DB_HOST: db-server, AP_NAME: ap-server-1}
+    depends_on: {db-server: {condition: service_healthy}}
+    healthcheck: {test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=2)"], interval: 1s, timeout: 2s, retries: 30}
+    networks: [test06]
+  ap-netadmin-1:
+    build: {context: ../phase0, dockerfile: tools.Dockerfile}
+    command: ["sleep", "infinity"]
+    cap_add: [NET_ADMIN]
+    network_mode: "service:ap-server-1"
+    depends_on: [ap-server-1]
+  management-connections:
+    build: {context: ../phase2/test06}
+    command: ["python3", "hold-admin.py"]
+    environment: {DB_HOST: db-server}
+    depends_on: {db-server: {condition: service_healthy}}
+    networks: [test06]
+  ap-server-2:
+    build: {context: ../phase2/test06}
+    environment: {DB_HOST: db-server, AP_NAME: ap-server-2}
+    depends_on: {db-server: {condition: service_healthy}}
+    healthcheck: {test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=2)"], interval: 1s, timeout: 2s, retries: 30}
+    networks: [test06]
+networks:
+  test06: {internal: true}
