@@ -9,8 +9,9 @@
 - TEST-00：PASS（Phase 0環境探査）
 - TEST-01：PASS（Docker Compose起動）
 - TEST-02：PASS（正常時にap-server-1業務成功）
+- TEST-03：PASS（最大12並列処理）
 
-次のTEST-ID：TEST-03（最大12並列処理）
+次のTEST-ID：TEST-04（障害注入時に複数接続が処理中）
 
 採用済み技術方式：方式A「対象通信DROP → docker pause」
 
@@ -29,12 +30,21 @@
   - request ID：`test02-20260908T170034-3580-b3c70bad`
   - 連続FAIL数：`0`
   - evidence：`artifacts/test-02/ubuntu-81356df3-62ce-41aa-904b-1a5bfcbe032d/20260908T170034-3580-b3c70bad`
+- TEST-03：Killercoda実環境で最大12並列処理がPASS。
+  - environment ID：`ubuntu-81356df3-62ce-41aa-904b-1a5bfcbe032d`
+  - run ID：`20260908T170934-4908-0b22ca59`
+  - AP同時処理数：`12`
+  - PostgreSQL同時接続数：`12`
+  - COMMIT成功数：`12`
+  - 13件目：HTTP `429`で拒否
+  - 連続FAIL数：`0`
+  - evidence：`artifacts/test-03/ubuntu-81356df3-62ce-41aa-904b-1a5bfcbe032d/20260908T170934-4908-0b22ca59`
 
 ## 未解決課題
 
-- TEST-03以降は未着手。次回はTEST-03だけを対象にする。
-- TEST-01/02の実測artifactはKillercodaセッション内にあり、Git管理対象ではない。
+- TEST-04以降は未着手。次回はTEST-04だけを対象にする。
+- TEST-01〜03の実測artifactはKillercodaセッション内にあり、Git管理対象ではない。
 
-最新成果物commit：`aef43e2`（TEST-02実測準備）
+最新成果物commit：`d41a2c8`（TEST-03実測準備）
 
 この文書を更新したチェックポイントcommitは、次回更新時に最新成果物commitとして記録する。
