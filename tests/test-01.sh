@@ -53,7 +53,7 @@ p,c,n,v=sys.argv[1:]; json.dump({'containers':int(c),'networks':int(n),'volumes'
 raise SystemExit(0 if int(c)==int(n)==int(v)==0 else 1)
 PY
   while IFS=$'\t' read -r _ _ id _; do docker volume inspect "$id" >/dev/null 2>&1 && rc=1; done < <(awk -F '\t' '$2=="volume"{print}' "$ledger")
-  python3 scripts/test01-phase0-inventory.py verify config/phase0-source.json "$art/phase0-protection.json" >>"$art/cleanup.log" 2>&1 || rc=1
+  python3 scripts/test01-phase0-inventory.py verify config/test01-phase0-prerequisite.json "$art/phase0-protection.json" >>"$art/cleanup.log" 2>&1 || rc=1
   return "$rc"
 }
 finalize(){
@@ -116,7 +116,7 @@ import datetime,json,subprocess,sys
 p,e,r,h,b,m,c=sys.argv[1:]; d={'schema_version':1,'environment':'killercoda','environment_id':e,'hostname':h,'boot_id':b,'marker_path':'/etc/killercoda/host','marker_sha256':m,'run_id':r,'docker_version':subprocess.check_output(['docker','version','--format','{{.Server.Version}}'],text=True).strip(),'compose_kind':c,'captured_at':datetime.datetime.now(datetime.timezone.utc).isoformat()}
 with open(p,'w',encoding='utf-8') as f: json.dump(d,f,indent=2); f.write('\n')
 PY
-python3 scripts/test01-phase0-inventory.py capture config/phase0-source.json "$art/phase0-protection.json" || { reason=phase0_manifest_failed; exit 1; }
+python3 scripts/test01-phase0-inventory.py capture config/test01-phase0-prerequisite.json "$art/phase0-protection.json" || { reason=phase0_manifest_failed; exit 1; }
 compose -p "$project" -f "$compose_file" config >"$art/compose-config.yaml" 2>"$art/compose-config.stderr" || { reason=compose_config_failed; exit 1; }
 compose -p "$project" -f "$compose_file" config --services >"$art/compose-services.txt" || { reason=compose_services_failed; exit 1; }
 [ "$(grep -cx db-server "$art/compose-services.txt")" = 1 ] && [ "$(grep -cx ap-server-1 "$art/compose-services.txt")" = 1 ] || { reason=required_service_missing; exit 1; }

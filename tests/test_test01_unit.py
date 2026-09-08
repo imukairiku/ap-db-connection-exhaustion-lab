@@ -55,6 +55,27 @@ class Test01LocalRegressionTests(unittest.TestCase):
         self.assertNotIn("ap-server-2:", compose)
         self.assertNotIn("ap-netadmin-1:", compose)
 
+    def test_phase0_prerequisite_uses_persistent_report(self):
+        source = ROOT / "config/test01-phase0-prerequisite.json"
+        with tempfile.TemporaryDirectory() as directory:
+            inventory = Path(directory) / "inventory.json"
+            capture = subprocess.run(
+                [sys.executable, str(ROOT / "scripts/test01-phase0-inventory.py"),
+                 "capture", str(source), str(inventory)],
+                cwd=ROOT, capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(0, capture.returncode, capture.stderr)
+            verify = subprocess.run(
+                [sys.executable, str(ROOT / "scripts/test01-phase0-inventory.py"),
+                 "verify", str(source), str(inventory)],
+                cwd=ROOT, capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(0, verify.returncode, verify.stderr)
+            paths = {row["path"] for row in json.loads(
+                inventory.read_text(encoding="utf-8"))["inventory"]}
+            self.assertEqual(
+                {"config/test01-phase0-prerequisite.json", "docs/phase0-report.md"}, paths)
+
 
 if __name__ == "__main__":
     unittest.main()

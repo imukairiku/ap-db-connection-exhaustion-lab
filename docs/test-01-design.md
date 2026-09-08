@@ -1,5 +1,16 @@
 # TEST-01 Docker Compose起動 設計
 
+## Phase 0前提の永続化
+
+TEST-01は障害注入を行わず、Phase 0で確定済みの方式Aを変更しないため、Killercodaの新規
+セッションでTEST-00を再実行しない。前提条件はGit管理された`docs/phase0-report.md`と
+`config/test01-phase0-prerequisite.json`から検証する。実行時artifactである
+`artifacts/phase0`の存在は要求しない。
+
+runnerは開始時に両ファイルの内容とTEST-00 PASS、attempt 4、方式A、環境/run ID、3観測点の
+matched count、cleanup確認済みを照合し、SHA-256 inventoryをTEST-01 artifactへ保存する。
+終了時に同じinventoryを再照合し、試験中の変更を検出する。
+
 ## 1. 目的と作業範囲
 
 TEST-01は、Killercoda上でPhase 1の最小構成をDocker Composeから起動できることを実測する独立した試験である。対象は次だけとする。

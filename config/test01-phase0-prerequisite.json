@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "test_id": "TEST-00",
+  "status": "PASS",
+  "attempt": 4,
+  "method": "A",
+  "environment_id": "ubuntu-01747e9d-d5c2-494b-bc03-e68deae7aac4",
+  "run_id": "20260903T155321-1728",
+  "cleanup_verified": true,
+  "matched_counts": {
+    "immediate_after": 3,
+    "after_5s": 3,
+    "after_15s": 3
+  },
+  "source_report": "docs/phase0-report.md"
+}
