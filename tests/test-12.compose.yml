@@ -1,0 +1,22 @@
+services:
+  db-server:
+    build: {context: ../phase0, dockerfile: db.Dockerfile}
+    command: ["postgres", "-c", "max_connections=20", "-c", "tcp_keepalives_idle=20", "-c", "tcp_keepalives_interval=5", "-c", "tcp_keepalives_count=3"]
+    environment: {POSTGRES_USER: lab, POSTGRES_PASSWORD: lab-only, POSTGRES_DB: lab}
+    volumes: ["../phase2/test06/init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro"]
+    healthcheck: {test: ["CMD-SHELL", "pg_isready -U lab -d lab"], interval: 1s, timeout: 2s, retries: 30}
+    networks: [test12]
+  ap-server-1:
+    build: {context: ../phase2/test06}
+    environment: {DB_HOST: db-server, AP_NAME: ap-server-1}
+    depends_on: {db-server: {condition: service_healthy}}
+    healthcheck: {test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=2)"], interval: 1s, timeout: 2s, retries: 30}
+    networks: [test12]
+  ap-netadmin-1:
+    build: {context: ../phase0, dockerfile: tools.Dockerfile}
+    command: ["sleep", "infinity"]
+    cap_add: [NET_ADMIN]
+    network_mode: "service:ap-server-1"
+    depends_on: [ap-server-1]
+networks:
+  test12: {internal: true}
