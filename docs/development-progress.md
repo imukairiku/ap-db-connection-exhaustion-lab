@@ -2,7 +2,7 @@
 
 更新日: 2026-09-13
 
-現在のPhase：Phase 4（暫定復旧）
+現在のPhase：Phase 5（恒久対策）
 
 完了済みTEST-ID：
 
@@ -16,8 +16,10 @@
 - TEST-07：PASS（APログにDB接続エラー）
 - TEST-08：PASS（ap-server-2へ自動切替）
 - TEST-09：PASS（pg_stat_activityから旧AP由来の残留接続を特定）
+- TEST-10：PASS（旧AP由来の接続だけを終了し業務復旧）
+- TEST-11：PASS（PostgreSQL再起動なしで復旧）
 
-次のTEST-ID：TEST-10（pg_terminate_backendで復旧）
+次のTEST-ID：TEST-12（Keepalive後に旧接続自動解放）
 
 採用済み技術方式：方式A「対象通信DROP → docker pause」
 
@@ -92,6 +94,17 @@
   - ACTIVE：`ap-server-2`、postmaster起動時刻不変
   - 連続FAIL数：`0`
   - evidence：`artifacts/test-09/ubuntu-08de0985-c51c-4db7-9144-cbaa93c666b4/20260912T184128-10202-5c3e8a3f`
+- TEST-10：Killercoda実環境で対象旧AP接続のみを終了し、新AP業務COMMITを確認してPASS。
+  - environment ID：`ubuntu-f35abd1b-24c4-4b33-9ba8-3a3dce614e92`
+  - run ID：`20260912T185610-1921-ad3ce5da`
+  - 旧AP接続：復旧前 `10`本、復旧後 `0`本
+  - 新AP・管理接続のPIDは維持、新AP業務COMMIT成功
+  - 連続FAIL数：`0`
+  - evidence：`artifacts/test-10/ubuntu-f35abd1b-24c4-4b33-9ba8-3a3dce614e92/20260912T185610-1921-ad3ce5da`
+- TEST-11：同じKillercoda実測runのDB継続性を独立判定してPASS。
+  - `pg_postmaster_start_time()`不変、DBコンテナID不変、restart count不変
+  - 新AP業務COMMIT成功、連続FAIL数：`0`
+  - evidence：`artifacts/test-10/ubuntu-f35abd1b-24c4-4b33-9ba8-3a3dce614e92/20260912T185610-1921-ad3ce5da`
 
 ## Phase 1判定
 
@@ -110,17 +123,23 @@ Phase 3：**PASS**。TEST-08がKillercoda実環境でPASSし、方式Aによる�
 ap-server-2を自動的にACTIVE化した。`artifacts/phase3/current.json`で切替完了を判定し、
 ap-server-1のPAUSED、ap-server-2のhealthy、postmaster起動時刻不変を確認した。
 
+## Phase 4判定
+
+Phase 4：**PASS**。TEST-09〜11がKillercoda実環境でPASSし、旧AP接続10本のみを終了して0本にし、
+新AP・管理接続を維持したまま新AP業務COMMITに成功した。postmaster起動時刻、DBコンテナID、
+restart countは復旧前後で変化しなかった。
+
 ## 未解決課題
 
-- TEST-10以降は未着手。次回はTEST-10だけを対象にする。
-- TEST-01〜09の実測artifactはKillercodaセッション内にあり、Git管理対象ではない。
-- Phase 4の復旧判定は未完了。TEST-09では接続識別のみ確認し、terminateによる復旧は実施していない。
+- TEST-12以降は未着手。次回作業はPhase 5のTEST-12から始める。
+- TEST-01〜11の実測artifactはKillercodaセッション内にあり、Git管理対象ではない。
+- Phase 5の恒久対策と解放秒数の実測は未着手。
 
 ## 未実施TEST-IDの番号整理
 
 Phase順との整合のため、未実施だった旧TEST-07を新TEST-06、旧TEST-08を新TEST-07、
 旧TEST-06を新TEST-08へ変更した。試験内容とPASS条件は変更していない。TEST-00〜05は変更なし。
 
-最新成果物commit：`d1cf8dc`（TEST-09実測準備）
+最新成果物commit：`5448b35`（TEST-10/11実測準備）
 
 この文書を更新したチェックポイントcommitは、次回更新時に最新成果物commitとして記録する。
