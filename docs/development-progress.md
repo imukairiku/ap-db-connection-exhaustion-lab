@@ -2,7 +2,7 @@
 
 更新日: 2026-09-13
 
-現在のPhase：Phase 2（DB接続枯渇）
+現在のPhase：Phase 3（AP自動切替）
 
 完了済みTEST-ID：
 
@@ -13,8 +13,9 @@
 - TEST-04：PASS（障害注入時に複数接続が処理中）
 - TEST-05：PASS（障害注入後に旧接続がpg_stat_activityとssの双方に残留）
 - TEST-06：PASS（max_connections=20でDB接続枯渇）
+- TEST-07：PASS（APログにDB接続エラー）
 
-次のTEST-ID：TEST-07（APログにDB接続エラー）
+次のTEST-ID：TEST-08（ap-server-2へ自動切替）
 
 採用済み技術方式：方式A「対象通信DROP → docker pause」
 
@@ -67,23 +68,36 @@
   - PostgreSQLログに実FATAL、postmaster起動時刻不変
   - 連続FAIL数：`0`（前回FAIL 1回後にPASSしてリセット）
   - evidence：`artifacts/test-06/ubuntu-c996a738-ea98-49e2-941c-7b41f8b4a95a/20260912T180934-4856-8d9b88dc`
+- TEST-07：Killercoda実環境で新APの実DB接続失敗をAPログとDBログの双方で確認してPASS。
+  - environment ID：`ubuntu-08de0985-c51c-4db7-9144-cbaa93c666b4`
+  - run ID：`20260912T181944-1923-aedd50ee`
+  - 新AP接続失敗 `7`件、同一request_idのAPエラーログ `7`件
+  - PostgreSQLログに実FATAL、postmaster起動時刻不変
+  - 連続FAIL数：`0`
+  - evidence：`artifacts/test-07/ubuntu-08de0985-c51c-4db7-9144-cbaa93c666b4/20260912T181944-1923-aedd50ee`
 
 ## Phase 1判定
 
 Phase 1：**PASS**。TEST-01〜05がすべてKillercoda実測PASSし、方式Aによる障害後15秒時点の
 実PostgreSQL session/TCP接続12本の残留、PostgreSQL再起動なし、cleanup後の対象接続0を確認した。
 
+## Phase 2判定
+
+Phase 2：**PASS**。TEST-06〜07がKillercoda実環境でPASSし、`max_connections=20`下で
+旧AP残留10本、新AP接続失敗7件、PostgreSQL実FATALとAP側の対応エラーログ7件を確認した。
+PostgreSQL再起動はなかった。AP切替は明示操作であり、自動切替はPhase 3の対象とする。
+
 ## 未解決課題
 
-- TEST-07以降は未着手。次回はTEST-07だけを対象にする。
-- TEST-01〜06の実測artifactはKillercodaセッション内にあり、Git管理対象ではない。
-- Phase 2は進行中であり、まだPASS確定していない。
+- TEST-08以降は未着手。次回はTEST-08だけを対象にする。
+- TEST-01〜07の実測artifactはKillercodaセッション内にあり、Git管理対象ではない。
+- Phase 3の設計・実装は開始していない。
 
 ## 未実施TEST-IDの番号整理
 
 Phase順との整合のため、未実施だった旧TEST-07を新TEST-06、旧TEST-08を新TEST-07、
 旧TEST-06を新TEST-08へ変更した。試験内容とPASS条件は変更していない。TEST-00〜05は変更なし。
 
-最新成果物commit：`1b1a1a7`（TEST-06判定修正）
+最新成果物commit：`e8eed2a`（TEST-07実測準備）
 
 この文書を更新したチェックポイントcommitは、次回更新時に最新成果物commitとして記録する。
