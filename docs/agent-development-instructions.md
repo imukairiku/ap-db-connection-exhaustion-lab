@@ -138,6 +138,34 @@ Phase管理／対象TEST-IDの限定／役割の順次切替／FAIL差し戻し�
 
 ---
 
+## 5B. Killercoda実測依頼時の標準案内
+
+人間にKillercodaでの実測を依頼する場合は、**「Killercodaのターミナルで実行する」**と明記し、
+リポジトリの有無に応じた次の2パターンを必ず両方提示する。`test-XX.sh`の`XX`は対象TEST-IDに置き換える。
+
+**A. Killercodaにリポジトリが存在しない場合**
+
+```bash
+cd ~
+git clone https://github.com/imukairiku/ap-db-connection-exhaustion-lab.git
+cd ap-db-connection-exhaustion-lab
+sudo bash tests/test-XX.sh
+```
+
+**B. Killercodaにすでにclone済みの場合**
+
+```bash
+cd ~/ap-db-connection-exhaustion-lab
+git pull --ff-only
+sudo bash tests/test-XX.sh
+```
+
+既存cloneでは、必要な最新資材を反映するため試験前に`git pull --ff-only`を実施するよう案内する。
+実行後は標準出力・標準エラーを含む**出力全文をCodexへ返す**よう依頼する。
+人間にはコード編集を依頼せず、単一エージェント運用を維持し、サブエージェントや並列エージェントは使用しない。
+
+---
+
 ## 6. Phase 0（新設）：環境能力の探査と方式確定
 
 **Phase 1に進む前に必ず実施する。** Killercoda上で何が使えるかをエージェント自身が実測する。
