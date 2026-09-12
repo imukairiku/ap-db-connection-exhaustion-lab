@@ -114,15 +114,15 @@ Phase管理／対象TEST-IDの限定／役割の順次切替／FAIL差し戻し�
 
 ## 5A. TEST-ID単位の作業・停止ルール
 
-- 1回の作業では、原則として1つのTEST-IDだけを扱う。複数のTEST-IDを一気に進めない。
-- TEST-IDごとに、同一エージェントが `designer視点 → reviewer視点 → implementer視点 → tester視点` の工程を順番に完了させる。
-- tester視点で実測PASSを確認したら、そのTEST-IDの成果物と進捗記録をcommitする。
-- commit後は変更内容、実測結果、commit hashを人間へ簡潔に報告し、作業を停止する。
-- 人間が「続けて」と明示するまで、次のTEST-IDへ進まない。
-- FAIL時の原因分析、設計修正、レビュー、実装修正、再試験は、当該TEST-IDの範囲内で行う。
-- 現在のTEST-IDに不要な将来Phaseまたは後続TEST-IDの機能を先回りして設計・実装しない。
-- 各TEST完了時に、新しいCodexセッションが次の未完了TEST-IDから再開できるよう、`docs/development-progress.md`へ進捗を記録する。
-- この節は、複数TEST-IDをまとめて進める旨を記した他の箇所より優先する。
+- 1回の作業では、同一Phase内の関連するTEST-IDを最大3個までまとめて扱ってよい。Phaseをまたいでまとめず、関連性が低いTEST-IDは無理にまとめない。1個だけ扱ってもよい。
+- 対象を決める際は`docs/development-progress.md`の次の未完了TEST-IDから始める。完了済みTEST-IDやPhaseを再実行しない。
+- 各TEST-IDごとに、同一エージェントが `designer視点 → reviewer視点 → implementer視点 → tester視点` を順番に担当し、設計・自己レビュー・実装・実測結果を区別して記録する。
+- 先行TEST-IDがFAILした場合、後続TEST-IDへ進まない。FAILしたTEST-IDの原因分析・修正・再試験を優先し、§15の停止条件をTEST-IDごとに適用する。
+- まとめたTEST-IDがすべて実測PASSした場合のみ、その作業単位を完了扱いとする。PASSしたTEST-IDは個別に`docs/development-progress.md`へ記録し、次回セッションで未完了TEST-IDから再開できるようにする。
+- 成果物と進捗記録は、対象TEST-IDが追跡できる明確な内容でcommitする。まとめて1 commitとしてもよい。
+- commit後は対象TEST-IDごとの変更内容・実測結果・commit hashを人間へ簡潔に報告し、作業を停止する。人間が「続けて」と指示するまで次のPhaseへ進まない。
+- 現在の作業単位に不要な将来Phaseの機能を先回りして設計・実装しない。サブエージェントを使わず、単一エージェント運用を維持する。
+- この節は、作業単位や停止条件について異なる記述をした他の箇所より優先する。
 
 進捗記録には最低限、次を含める。
 
@@ -161,6 +161,8 @@ sudo bash tests/test-XX.sh
 ```
 
 既存cloneでは、必要な最新資材を反映するため試験前に`git pull --ff-only`を実施するよう案内する。
+複数TEST-IDを扱う場合は、対象TEST-IDごとに実行コマンドを順番に提示する。先行TEST-IDがFAILしたら
+後続TEST-IDを実行せず、その出力をCodexへ返すよう明記する。
 実行後は標準出力・標準エラーを含む**出力全文をCodexへ返す**よう依頼する。
 人間にはコード編集を依頼せず、単一エージェント運用を維持し、サブエージェントや並列エージェントは使用しない。
 
