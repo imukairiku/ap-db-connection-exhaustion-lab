@@ -1,0 +1,7 @@
+# Phase 4：TEST-10／TEST-11
+
+両TESTは同じKillercoda実測runを共有するが、判定は分ける。TEST-10では既存の方式AとPhase 3監視を利用し、旧APの処理中DB接続10本と管理接続2本を保持して自動切替する。新APはACTIVE後に12件の接続要求を出し、PostgreSQLの上限による実失敗と一部成功を確認する。`pg_stat_activity`で旧APのPID・`backend_start`・`client_addr`を記録し、終了直前に同一属性を再照合した対象PIDだけに`pg_terminate_backend`を適用する。既に消滅したPIDは成功扱いにする。新APと管理接続のPIDが不変、旧AP接続0、AP2コンテナから`app_user`で実DBへ業務INSERT/COMMITして行を再読込できた場合だけTEST-10 PASSとする。PostgreSQL全体の再起動は行わない。
+
+TEST-11はTEST-10 PASSの同一環境・runのみ受け付ける。TEST-10の復旧前後にDBから採取した`pg_postmaster_start_time()`、Dockerから採取したDBコンテナIDと`RestartCount`が完全一致し、AP2業務COMMITが確認済みである場合だけPASSとする。TEST-11はDBを再起動・再構築せず、TEST-10の生の証跡を独立に再評価する。TEST-10がFAILした場合はTEST-11を実行しない。
+
+各TESTの失敗回数は別管理。隔離Compose projectとDROP ruleはTEST-10終了時にcleanupする。実測前は両TESTとも未判定。
