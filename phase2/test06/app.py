@@ -7,13 +7,14 @@ lock=threading.Lock(); gate=threading.Event(); requests={}
 def emit(rid,event,**extra): print(json.dumps({'request_id':rid,'ap':AP,'event':event,**extra}),flush=True)
 def worker(rid):
  conn=None
+ phase='connect'
  try:
-  emit(rid,'START'); conn=psycopg2.connect(connect_timeout=3,**DSN); cur=conn.cursor(); cur.execute('INSERT INTO business_results(request_id,ap_name) VALUES(%s,%s)',(rid,AP))
+  emit(rid,'START'); conn=psycopg2.connect(connect_timeout=3,**DSN); phase='business'; cur=conn.cursor(); cur.execute('INSERT INTO business_results(request_id,ap_name) VALUES(%s,%s)',(rid,AP))
   with lock: requests[rid].update(connected=True,state='DB_CONNECTED')
   emit(rid,'DB_CONNECTED'); gate.wait(120)
  except Exception as error:
-  with lock: requests[rid].update(active=False,state='CONNECTION_FAILED',error_type=type(error).__name__)
-  emit(rid,'CONNECTION_FAILED',error_type=type(error).__name__)
+  with lock: requests[rid].update(active=False,state='CONNECTION_FAILED',error_type=type(error).__name__,error_phase=phase)
+  emit(rid,'CONNECTION_FAILED',error_type=type(error).__name__,error_phase=phase,db_error=str(error).strip())
  finally:
   if conn:
    gate.wait(120); conn.close()
