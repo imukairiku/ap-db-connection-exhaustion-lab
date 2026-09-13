@@ -2,7 +2,7 @@
 
 更新日: 2026-09-13
 
-現在のPhase：Phase 6（接続数設計比較）
+現在のPhase：Phase 7（Killercoda化）
 
 完了済みTEST-ID：
 
@@ -20,8 +20,10 @@
 - TEST-11：PASS（PostgreSQL再起動なしで復旧）
 - TEST-12：PASS（Keepaliveによる旧AP接続の自動解放）
 - TEST-13：PASS（APの自動再接続と業務復旧）
+- TEST-14：PASS（max_connections=20の容量測定）
+- TEST-15：PASS（max_connections=30の容量測定と比較）
 
-次のTEST-ID：TEST-14（max_connections=20比較試験）
+次のTEST-ID：TEST-16（reset後に同じ障害を再現）
 
 採用済み技術方式：方式A「対象通信DROP → docker pause」
 
@@ -120,6 +122,18 @@
   - `connect_timeout=5`秒、backoff `1→2→4`秒、復旧前の接続失敗 `3`回
   - AP・DBとも再起動なし。AP自動再接続後、業務COMMIT成功。連続FAIL数：`0`
   - evidence：`artifacts/test-13/ubuntu-9a5b439e-7a34-4261-a420-0bdc72261569/20260913T135718-12940-9878fb1d`
+- TEST-14：Killercoda実環境で`max_connections=20`時の実接続枯渇を測定してPASS。
+  - environment ID：`ubuntu-9a5b439e-7a34-4261-a420-0bdc72261569`
+  - run ID：`20260913T140641-15502-5a7675fa`
+  - 旧AP残留 `10`本、新AP成功 `5`本／失敗 `7`本、管理 `2`本
+  - 最終接続 `17`本、非予約枠の接続余力 `0`本、postmaster起動時刻不変、連続FAIL数 `0`
+  - evidence：`artifacts/test-14/ubuntu-9a5b439e-7a34-4261-a420-0bdc72261569/20260913T140641-15502-5a7675fa`
+- TEST-15：同一Killercoda環境・同一負荷条件で`max_connections=30`を測定してPASS。
+  - environment ID：`ubuntu-9a5b439e-7a34-4261-a420-0bdc72261569`
+  - run ID：`20260913T140712-18061-8b6aa06d`
+  - 旧AP残留 `10`本、新AP成功 `12`本／失敗 `0`本、管理 `2`本
+  - 最終接続 `24`本、非予約枠の接続余力 `3`本、postmaster起動時刻不変、連続FAIL数 `0`
+  - evidence：`artifacts/test-15/ubuntu-9a5b439e-7a34-4261-a420-0bdc72261569/20260913T140712-18061-8b6aa06d`
 
 ## Phase 1判定
 
@@ -150,17 +164,25 @@ Phase 5：**PASS**。TEST-12〜13がKillercoda実環境でPASSした。Keepalive
 実接続3本が`35.664`秒後に自動解放され、PostgreSQLは再起動していない。APは
 `connect_timeout=5`秒、`1→2→4`秒のbackoff後に再接続し、AP・DB再起動なしで業務COMMITに成功した。
 
+## Phase 6判定
+
+Phase 6：**PASS**。TEST-14〜15がKillercoda実環境でPASSした。同じ旧AP残留10本・管理2本・
+新AP要求12件の条件で、`max_connections=20`では新AP成功5件／失敗7件・余力0本、
+`max_connections=30`では成功12件／失敗0件・余力3本を実測した。両ケースともPostgreSQL再起動なし。
+`max_connections`増加は容量余力を増やす対策であり、旧AP残留接続そのものを解消する根本対策ではない。
+残留接続の解消はKeepalive等の別対策として扱う。
+
 ## 未解決課題
 
-- TEST-14以降は未着手。次回作業はPhase 6のTEST-14から始める。
-- TEST-01〜13の実測artifactはKillercodaセッション内にあり、Git管理対象ではない。
-- Phase 6のmax_connections=20/30比較は未着手。
+- TEST-16以降は未着手。次回作業はPhase 7のTEST-16から始める。
+- TEST-01〜15の実測artifactはKillercodaセッション内にあり、Git管理対象ではない。
+- Phase 7のreset再現性とKillercoda verifyは未着手。
 
 ## 未実施TEST-IDの番号整理
 
 Phase順との整合のため、未実施だった旧TEST-07を新TEST-06、旧TEST-08を新TEST-07、
 旧TEST-06を新TEST-08へ変更した。試験内容とPASS条件は変更していない。TEST-00〜05は変更なし。
 
-最新成果物commit：`f2cd319`（TEST-13再実測準備）
+最新成果物commit：`0a75169`（TEST-14/15実測準備）
 
 この文書を更新したチェックポイントcommitは、次回更新時に最新成果物commitとして記録する。
