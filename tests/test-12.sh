@@ -72,7 +72,17 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 [ "$dh" = healthy ] && [ "$ah" = healthy ] || { reason=readiness_timeout; exit 1; }
-docker exec "$DB" psql -U lab -d lab -At -F '|' -c 'SHOW tcp_keepalives_idle; SHOW tcp_keepalives_interval; SHOW tcp_keepalives_count' >"$art/keepalive-settings.txt" || { reason=keepalive_query_failed; exit 1; }
+docker exec "$DB" psql -U lab -d lab -At -F '|' -c "SELECT CASE WHEN inet_client_addr() IS NULL THEN 'unix' ELSE 'tcp' END,current_setting('tcp_keepalives_idle'),current_setting('tcp_keepalives_interval'),current_setting('tcp_keepalives_count')" >"$art/unix-socket-settings.txt" || { reason=unix_socket_query_failed; exit 1; }
+docker exec "$DB" sh -c 'for name in tcp_keepalive_time tcp_keepalive_intvl tcp_keepalive_probes; do cat "/proc/sys/net/ipv4/$name"; done' >"$art/kernel-keepalive-defaults.txt" || { reason=kernel_defaults_query_failed; exit 1; }
+docker exec -e PGPASSWORD=lab-only "$DB" psql -h 127.0.0.1 -U lab -d lab -At -F '|' -c "SELECT CASE WHEN inet_client_addr() IS NOT NULL THEN 'tcp' ELSE 'unix' END,current_setting('tcp_keepalives_idle'),current_setting('tcp_keepalives_interval'),current_setting('tcp_keepalives_count')" >"$art/db-tcp-settings.txt" || { reason=db_tcp_settings_query_failed; exit 1; }
+docker exec -i "$AP" python3 - <<'PY' >"$art/ap-to-db-tcp-settings.txt" || { reason=ap_tcp_settings_query_failed; exit 1; }
+import os,psycopg2
+with psycopg2.connect(host=os.environ['DB_HOST'],user='app_user',password='app-only',dbname='lab',application_name='test12-config-probe',connect_timeout=5) as conn:
+    with conn.cursor() as cursor:
+        cursor.execute("SELECT CASE WHEN inet_client_addr() IS NOT NULL THEN 'tcp' ELSE 'unix' END,current_setting('tcp_keepalives_idle'),current_setting('tcp_keepalives_interval'),current_setting('tcp_keepalives_count')")
+        print('|'.join(map(str,cursor.fetchone())))
+PY
+docker exec -e PGPASSWORD=lab-only "$DB" psql -h 127.0.0.1 -U lab -d lab -At -F '|' -c "SELECT name,setting,source FROM pg_settings WHERE name IN ('tcp_keepalives_idle','tcp_keepalives_interval','tcp_keepalives_count') ORDER BY name" >"$art/db-tcp-setting-sources.txt" || { reason=db_tcp_setting_sources_failed; exit 1; }
 PM=$(docker exec "$DB" psql -U lab -d lab -At -c 'SELECT pg_postmaster_start_time()'); RESTART=$(docker inspect -f '{{.RestartCount}}' "$DB")
 docker exec -i "$AP" python3 - "test12-$run_id" <<'PY' >"$art/ap1-batch.json" || { reason=batch_failed; exit 1; }
 import json,sys,urllib.request
