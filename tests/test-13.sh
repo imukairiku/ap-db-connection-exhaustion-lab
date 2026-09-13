@@ -8,9 +8,9 @@ env_id="$(hostname)-$(cat /proc/sys/kernel/random/boot_id)"
 python3 - "$env_id" <<'PY' || { echo 'TEST-13 BLOCKED: TEST-12 must PASS in this Killercoda session first' >&2; exit 3; }
 import json,pathlib,sys
 p=pathlib.Path('artifacts/test-12/failure-state.json')
-assert p.is_file()
+if not p.is_file(): raise SystemExit(1)
 h=json.loads(p.read_text(encoding='utf-8'))['history']
-assert h and h[-1]['status']=='PASS' and pathlib.Path(h[-1]['artifact_path']).parts[2]==sys.argv[1]
+if not h or h[-1]['status']!='PASS' or pathlib.Path(h[-1]['artifact_path']).parts[2]!=sys.argv[1]: raise SystemExit(1)
 PY
 python3 scripts/phase5-counter.py TEST-13 "$COUNTER" gate >/dev/null || exit 3
 run_id="$(date -u +%Y%m%dT%H%M%S)-$$-$(python3 -c 'import secrets; print(secrets.token_hex(4))')"
@@ -82,12 +82,13 @@ docker exec "$ADMIN" iptables-save >"$art/iptables-after.txt"
 docker exec "$AP" touch /tmp/start-retry || { reason=retry_start_failed; exit 1; }
 three_failed=0
 for _ in $(seq 1 120); do
-  docker logs "$AP" >"$art/ap.log" 2>&1
-  python3 - "$art/ap.log" <<'PY' && { three_failed=1; break; }
-import json,sys
-rows=[json.loads(x) for x in open(sys.argv[1]) if x.startswith('{')]
-assert any(x.get('event')=='BACKOFF_START' and x.get('attempt')==3 and x.get('seconds')==4 for x in rows)
-PY
+  docker logs "$AP" >"$art/ap.log" 2>&1 || { reason=ap_log_unavailable; exit 1; }
+  if python3 scripts/test13-poll.py "$art/ap.log"; then
+    three_failed=1; break
+  else
+    poll_rc=$?
+    [ "$poll_rc" = 1 ] || { reason=poll_evidence_invalid; exit 1; }
+  fi
   sleep .25
 done
 [ "$three_failed" = 1 ] || { reason=three_failures_not_observed; exit 1; }
