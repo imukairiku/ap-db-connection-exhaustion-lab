@@ -2,7 +2,7 @@
 
 更新日: 2026-09-13
 
-現在のPhase：Phase 7（Killercoda化）
+現在のPhase：Phase 7（Killercoda化、TEST-16〜18実測PASS）
 
 完了済みTEST-ID：
 
@@ -22,8 +22,11 @@
 - TEST-13：PASS（APの自動再接続と業務復旧）
 - TEST-14：PASS（max_connections=20の容量測定）
 - TEST-15：PASS（max_connections=30の容量測定と比較）
+- TEST-16：PASS（reset後に正常化し、方式Aの障害を再現）
+- TEST-17：PASS（対象を限定した復旧をverifyが正しく受理）
+- TEST-18：PASS（DB再起動による誤復旧をverifyが拒否）
 
-次のTEST-ID：TEST-16（reset後に同じ障害を再現）
+次のTEST-ID：なし（TEST-00〜18すべて実測PASS）
 
 採用済み技術方式：方式A「対象通信DROP → docker pause」
 
@@ -172,17 +175,42 @@ Phase 6：**PASS**。TEST-14〜15がKillercoda実環境でPASSした。同じ旧
 `max_connections`増加は容量余力を増やす対策であり、旧AP残留接続そのものを解消する根本対策ではない。
 残留接続の解消はKeepalive等の別対策として扱う。
 
+## Phase 7実測結果と判定
+
+Phase 7：**PASS**。TEST-16〜18をKillercoda実環境で順に実行し、すべてPASSした。
+TEST-00〜18はすべて実測PASS。Phase 7の資材は`f8239cc`で実測準備commit済みであり、
+この判定は以下の人間から提供されたKillercoda実測結果に基づく。
+
+- TEST-16：environment `ubuntu-9a5b439e-7a34-4261-a420-0bdc72261569`、
+  run `20260913T142437-6af60280`。reset前の旧AP接続は`10`本。reset後の
+  正常業務COMMIT成功、DROPルール残存`0`、AP1 pause残存`false`。
+  方式Aを再注入して旧AP接続`10`本とAP2接続失敗`9`件を確認。連続FAIL数`0`。
+  evidence：`artifacts/test-16/ubuntu-9a5b439e-7a34-4261-a420-0bdc72261569/20260913T142437-6af60280`。
+- TEST-17：同環境、run `20260913T142530-397d6d4b`。旧AP接続`10→0`本、
+  新AP接続と管理接続はともに維持。AP2業務request ID
+  `phase7-business-ba0ac8205b3243eebc33a29fe12da3bf`がCOMMITし、
+  postmaster起動時刻不変。正しい復旧をverifyがPASS判定。連続FAIL数`0`。
+  evidence：`artifacts/test-17/ubuntu-9a5b439e-7a34-4261-a420-0bdc72261569/20260913T142530-397d6d4b`。
+- TEST-18：同環境、run `20260913T142535-42ce9997`。誤復旧としてDBを再起動。
+  再起動後も業務COMMITは可能だったが、postmaster起動時刻が変化し、
+  verify結果は`FAIL`。誤復旧を拒否したためTEST-18自体はPASS。連続FAIL数`0`。
+  evidence：`artifacts/test-18/ubuntu-9a5b439e-7a34-4261-a420-0bdc72261569/20260913T142535-42ce9997`。
+
+開発・TEST-ID検証は完了。TEST-18のDB再起動は誤復旧を拒否できるか確認するための
+隔離された負例試験であり、正しい復旧手順には含まれない。
+
 ## 未解決課題
 
-- TEST-16以降は未着手。次回作業はPhase 7のTEST-16から始める。
-- TEST-01〜15の実測artifactはKillercodaセッション内にあり、Git管理対象ではない。
-- Phase 7のreset再現性とKillercoda verifyは未着手。
+- TEST-ID上の未完了項目はない。
+- TEST-01〜18の実測artifactはKillercodaセッション内にあり、Git管理対象ではない。
+- KillercodaブラウザからのScenario公開・開始・7 Step UI操作を第三者が通すエンドツーエンド確認は、
+  このTEST-16〜18の出力だけでは確認できない。最終Definition of Doneのこの項目は別途確認が必要。
 
 ## 未実施TEST-IDの番号整理
 
 Phase順との整合のため、未実施だった旧TEST-07を新TEST-06、旧TEST-08を新TEST-07、
 旧TEST-06を新TEST-08へ変更した。試験内容とPASS条件は変更していない。TEST-00〜05は変更なし。
 
-最新成果物commit：`0a75169`（TEST-14/15実測準備）
+最新成果物commit：`f8239cc`（Phase 7 TEST-16〜18実測準備）
 
 この文書を更新したチェックポイントcommitは、次回更新時に最新成果物commitとして記録する。

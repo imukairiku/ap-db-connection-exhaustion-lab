@@ -1,6 +1,7 @@
 # Phase 7 実測準備設計（TEST-16〜18）
 
-状態: 実測前。TEST-16〜18およびPhase 7はPASS未確定。
+状態: 2026-09-13にKillercoda実環境でTEST-16〜18が順にPASSし、Phase 7をPASS確定。
+実測値と証跡の参照先は`docs/development-progress.md`に記録する。
 
 ## 分離と基準
 
@@ -38,6 +39,7 @@ Step 7は新規業務COMMITと復旧状態を検証する。Step 6の設定確�
 
 ## 自己レビューと未確認事項
 
-静的確認のみでPASSにしない。KillercodaのCompose standalone、NET_ADMIN、Docker pause、
-監視器、DBの実接続数、reset再現性、verify正誤はTEST-16〜18の順で実測する。
-背景セットアップやKillercoda UIからのverify起動も実環境で確認が必要。
+静的確認のみでPASSにしない。Compose、NET_ADMIN、Docker pause、監視器、
+DBの実接続数、reset再現性、verify正誤はTEST-16〜18の順でKillercoda実測した。
+ただし、ブラウザのScenario開始・7 Step UI操作までの第三者エンドツーエンド確認は
+このTEST出力からは判定できず、最終Definition of Done上の残確認事項とする。
