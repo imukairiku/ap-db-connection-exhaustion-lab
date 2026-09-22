@@ -212,7 +212,8 @@ def inject():
             raise RuntimeError('AP2 did not become ACTIVE')
         ap2 = cid(compose, 'ap-server-2')
         ap_http(ap2, 'batch', [f'phase7-new-{value["run_id"]}-{n:02d}' for n in range(1, 13)])
-        ap2_state = wait_for(lambda: (s if s['connected'] + s['failed'] == 12 and s['failed'] >= 1 else None)
+        ap2_state = wait_for(lambda: (s if s['accepted'] == 12 and s['connected'] >= 1 and
+                                      s['connection_failures'] >= 1 else None)
                              if (s := ap_http(ap2, 'state')) else None,
                              'AP2 connection failures not observed', 120, .25)
         current_rows = rows(db)
@@ -240,7 +241,7 @@ def inject():
             raise RuntimeError('real DB capacity FATAL not observed')
         value.update(stage='INCIDENT', ap2_container_id=ap2, tag=tag, db_ip=ip,
                      old_sessions=old, preserved_sessions=[r for r in current_rows if r['application_name'] == 'ap-server-2' or r['application_name'].startswith('management-')],
-                     ap2_failed=ap2_state['failed'], ap2_connected=ap2_state['connected'],
+                     ap2_failed=ap2_state['connection_failures'], ap2_connected=ap2_state['connected'],
                      residual_pg_ss_matched=after_match,
                      failover_state=str(state_path.relative_to(ROOT)))
         save(value)

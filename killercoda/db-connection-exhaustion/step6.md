@@ -17,4 +17,4 @@ sudo docker exec "$DB" psql -U lab -d lab -c "SELECT name, setting FROM pg_setti
 
 観察：最後の表示がidle`20`、interval`5`、count`3`になればverifyへ進みます。既存接続への適用や自動解放そのものは、このStepのverify対象ではありません。
 
-AP側では接続待ちを無期限にしないため`connect_timeout=5`秒が現在のAPに設定されています。失敗時の再試行間隔`1→2→4`秒は連続接続でDBをさらに圧迫しないための恒久対策です。ただし、このScenarioのAPワーカーには自動retryの切替設定がなく、受講者にAPコード編集は求めません。今回のverifyはDB側設定の実値を判定します。`max_connections`の増加だけでは残留接続自体は消えません。
+AP側では接続待ちを無期限にしないため`connect_timeout=5`秒を使用します。接続失敗後は`1→2→4`秒（以後4秒上限）のbackoffで自動retryし、DBが接続可能になればAPやDBの再起動なしで業務をCOMMITします。間隔を空けることで、障害中の高速な再接続ループを避けます。今回のStep 6 verifyはDB側Keepalive設定の実値を判定し、AP側retryはログとStep 7の業務成功で観察します。`max_connections`の増加だけでは残留接続自体は消えません。
