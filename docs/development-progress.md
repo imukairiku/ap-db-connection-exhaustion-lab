@@ -1,6 +1,6 @@
 # 開発進捗チェックポイント
 
-更新日: 2026-09-13
+更新日: 2026-09-23
 
 現在のPhase：Phase 7（Killercoda化、TEST-16〜18実測PASS）
 
@@ -199,18 +199,33 @@ TEST-00〜18はすべて実測PASS。Phase 7の資材は`f8239cc`で実測準備
 開発・TEST-ID検証は完了。TEST-18のDB再起動は誤復旧を拒否できるか確認するための
 隔離された負例試験であり、正しい復旧手順には含まれない。
 
+## Phase 7 Scenario retry追加実測
+
+Scenarioで実際に使用するAPへ`connect_timeout=5`秒と`1→2→4`秒（以後4秒上限）の
+自動retryを追加した。既存TEST-IDとは分離した限定チェックをKillercoda実環境で実施し、PASSした。
+
+- environment：`ubuntu-12fe89c3-42e0-437e-937d-48c794226c32`
+- run：`20260922T150317-1795-df92c39e`
+- 実測：`connect_timeout=5`、backoff `1,2,4`、AP再起動`false`、DB再起動`false`、
+  自動再接続後の業務COMMIT成功
+- evidence：`artifacts/phase7-retry/ubuntu-12fe89c3-42e0-437e-937d-48c794226c32/20260922T150317-1795-df92c39e`
+- 実装・実測準備commit：`bf28dd2`
+
+これにより、元の恒久対策要件であるKeepalive `20/5/3`、`connect_timeout=5`、retry backoff
+`1→2→4`秒は、Scenarioで使用する構成まで実装・実測済みとなった。TEST-00〜18のPASS記録は維持する。
+
 ## 未解決課題
 
 - TEST-ID上の未完了項目はない。
 - TEST-01〜18の実測artifactはKillercodaセッション内にあり、Git管理対象ではない。
 - KillercodaブラウザからのScenario公開・開始・7 Step UI操作を第三者が通すエンドツーエンド確認は、
-  このTEST-16〜18の出力だけでは確認できない。最終Definition of Doneのこの項目は別途確認が必要。
+  自動試験およびretry限定実測では確認できない。次の作業は教材表示だけを使うブラウザE2E受入とする。
 
 ## 未実施TEST-IDの番号整理
 
 Phase順との整合のため、未実施だった旧TEST-07を新TEST-06、旧TEST-08を新TEST-07、
 旧TEST-06を新TEST-08へ変更した。試験内容とPASS条件は変更していない。TEST-00〜05は変更なし。
 
-最新成果物commit：`f8239cc`（Phase 7 TEST-16〜18実測準備）
+最新成果物commit：`bf28dd2`（Phase 7 Scenario AP retry実装・実測準備）
 
 この文書を更新したチェックポイントcommitは、次回更新時に最新成果物commitとして記録する。

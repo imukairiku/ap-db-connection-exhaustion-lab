@@ -14,7 +14,13 @@ unpause、`phase7_`タグ付きDROPルール削除、`down -v`、再構築する
 方式Aを使う `inject` は10本の旧AP処理中接続を `pg_stat_activity` とDB側 `ss` で照合し、
 通信DROPを2方向へ投入してからAP1をpauseする。既存の監視器がpauseを検知しAP2を自動起動する。
 AP2の12接続要求でPostgreSQL実ログの容量超過FATALとAP2側の接続失敗を観測する。
-Phase 7専用APはトランザクションを演習時間中保持する。ダミー接続は使わない。
+Phase 7専用APのAP1は処理中トランザクションを、AP2はCOMMIT後の接続を演習時間中保持する。
+ダミー接続は使わない。
+
+APはDB接続に`connect_timeout=5`秒を使用する。`OperationalError`発生時は実際のDB接続処理を
+`1→2→4`秒（以後4秒上限）で自動retryし、高速な無限再接続を避ける。AP2は再接続成功後に
+業務をCOMMITする。接続試行、失敗、次回backoff、再接続、COMMITはrequest ID単位でログ化する。
+接続以外の例外はretryせず、実装異常を無限retryで隠さない。
 
 ## TEST-ID別判定
 
@@ -41,5 +47,8 @@ Step 7は新規業務COMMITと復旧状態を検証する。Step 6の設定確�
 
 静的確認のみでPASSにしない。Compose、NET_ADMIN、Docker pause、監視器、
 DBの実接続数、reset再現性、verify正誤はTEST-16〜18の順でKillercoda実測した。
+さらにScenario APの`connect_timeout=5`、backoff `1→2→4`秒、自動再接続、業務COMMIT、
+AP・DB再起動なしを2026-09-22のKillercoda限定実測で確認した。証跡は
+`docs/development-progress.md`に記録する。
 ただし、ブラウザのScenario開始・7 Step UI操作までの第三者エンドツーエンド確認は
 このTEST出力からは判定できず、最終Definition of Done上の残確認事項とする。
